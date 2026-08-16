@@ -22,8 +22,8 @@ export interface Options {
  * options to send the event as a Message across supported transports.
  * @interface
  */
-export interface EmitterFunction {
-  <T>(event: CloudEvent<T>, options?: Options): Promise<unknown>;
+export interface EmitterFunction<TResult = unknown> {
+  <T>(event: CloudEvent<T>, options?: Options): Promise<TResult>;
 }
 
 /**
@@ -32,8 +32,8 @@ export interface EmitterFunction {
  * across the wire.
  * @interface
  */
-export interface TransportFunction {
-  (message: Message, options?: Options): Promise<unknown>;
+export interface TransportFunction<TResult = unknown> {
+  (message: Message, options?: Options): Promise<TResult>;
 }
 
 const emitterDefaults: Options = { binding: HTTP, mode: Mode.BINARY };
@@ -51,12 +51,14 @@ const emitterDefaults: Options = { binding: HTTP, mode: Mode.BINARY };
  * @param {Mode} options.mode the encoding mode (Mode.BINARY or Mode.STRUCTURED)
  * @returns {EmitterFunction} an EmitterFunction to send events with
  */
-export function emitterFor(fn: TransportFunction, options = emitterDefaults): EmitterFunction {
+export function emitterFor<TResult = unknown>(
+  fn: TransportFunction<TResult>, options = emitterDefaults,
+): EmitterFunction<TResult> {
   if (!fn) {
     throw new TypeError("A TransportFunction is required");
   }
   const { binding, mode }: any = { ...emitterDefaults, ...options };
-  return function emit<T>(event: CloudEvent<T>, opts?: Options): Promise<unknown> {
+  return function emit<T>(event: CloudEvent<T>, opts?: Options): Promise<TResult> {
     opts = opts || {};
 
     switch (mode) {

@@ -18,8 +18,8 @@ _Note:_ Supports CloudEvent version 1.0
 
 ## Installation
 
-The CloudEvents SDK requires a current LTS version of Node.js. At the moment
-those are Node.js 16.x, and Node.js 18.x. To install in your Node.js project:
+The CloudEvents SDK supports Node.js 20 through 24. To install it in your
+Node.js project:
 
 ```console
 npm install cloudevents
@@ -49,17 +49,56 @@ app.post("/", (req, res) => {
 The easiest way to send events is to use the built-in HTTP emitter.
 
 ```js
-const { httpTransport, emitterFor, CloudEvent } = require("cloudevents");
+const {
+  httpTransport,
+  HTTPTransportError,
+  emitterFor,
+  CloudEvent,
+} = require("cloudevents");
 
-// Create an emitter to send events to a receiver
-const emit = emitterFor(httpTransport("https://my.receiver.com/endpoint"));
+// Send order events to this service. In Knative, this can be process.env.K_SINK.
+const emit = emitterFor(httpTransport("https://events.example.com/orders", {
+  timeoutMs: 10_000,
+}));
 
 // Create a new CloudEvent
 const ce = new CloudEvent({ type, source, data });
 
-// Send it to the endpoint - encoded as HTTP binary by default
-emit(ce);
+try {
+  // Any 2xx response accepts the event. A successful emit returns no value.
+  await emit(ce);
+} catch (error) {
+  if (error instanceof HTTPTransportError) {
+    console.error(error.kind); // "http-status", "timeout", or "network"
+    console.error(error.statusCode); // 503 for an HTTP response; otherwise undefined
+    console.error(error.responseBody); // retained for an HTTP response only
+  }
+}
 ```
+
+Use the error fields to decide what your application should retry or report:
+
+| What happened | `error.kind` | `error.statusCode` |
+| --- | --- | --- |
+| The receiver returned an unfollowed or final `3xx`, `4xx`, or `5xx` | `http-status` | The received status, such as `503` |
+| `timeoutMs` elapsed before a response status arrived | `timeout` | `undefined` |
+| DNS, connection, or TLS failed | `network` | `undefined` |
+
+The transport sends one request and never retries automatically. An HTTP error
+includes response headers and up to 64 KiB of UTF-8 response text. Set
+`maxErrorBodyBytes` when your application needs a different diagnostic limit;
+use `0` to retain no error body. `responseBodyTruncated` tells you whether the
+body was incomplete. Network and timeout errors retain the original failure in
+`cause`. The timeout also covers reading an HTTP error body. If a response
+status has already arrived when that read times out, `kind` remains
+`http-status`, the known `statusCode` is preserved, and `timeoutMs` and `cause`
+describe why the diagnostic body is incomplete.
+
+Redirects are returned as `http-status` errors by default. To follow redirects,
+create the transport with `{ redirect: "follow" }`. This uses standard Fetch
+behavior: `307` and `308` preserve the CloudEvent POST, while `301`, `302`, and
+`303` may change it to a GET and remove its body. Only enable redirect following
+when that behavior is valid for the receiver URL.
 
 If you prefer to use another transport mechanism for sending events
 over HTTP, you can use the `HTTP` binding to create a `Message` which
