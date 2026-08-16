@@ -1,0 +1,40 @@
+name: Publish fork package to GitHub Packages
+
+on:
+  push:
+    tags:
+      - "fork-v*"
+
+jobs:
+  publish:
+    if: github.repository == 'kahirokunn/sdk-javascript'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@kahirokunn"
+      - name: Install dependencies
+        run: npm ci
+      - name: Test package
+        run: npm test
+      - name: Configure fork package metadata
+        run: |
+          package_version="${GITHUB_REF_NAME#fork-v}"
+          npm version "${package_version}" --no-git-tag-version
+          npm pkg set \
+            "name=@kahirokunn/cloudevents" \
+            "repository.type=git" \
+            "repository.url=git+https://github.com/kahirokunn/sdk-javascript.git" \
+            "publishConfig.registry=https://npm.pkg.github.com" \
+            "publishConfig.access=public"
+      - name: Publish package
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
