@@ -4,7 +4,7 @@
 */
 
 import { CloudEvent } from "../event/cloudevent";
-import { HTTP, Message, Mode } from "../message";
+import { Headers as CloudEventHeaders, HTTP, Message, Mode } from "../message";
 import { EventEmitter } from "events";
 
 /**
@@ -13,6 +13,10 @@ import { EventEmitter } from "events";
  * @interface
  */
 export interface Options {
+  /** Aborts the send, for transports which support cancellation */
+  signal?: AbortSignal;
+  /** Headers for this send, taking precedence over the ones the binding produced */
+  headers?: CloudEventHeaders;
   [key: string]: string | Record<string, unknown> | unknown;
 }
 
@@ -20,20 +24,22 @@ export interface Options {
  * EmitterFunction is an invokable interface returned by {@linkcode emitterFor}.
  * Invoke an EmitterFunction with a CloudEvent and optional transport
  * options to send the event as a Message across supported transports.
+ * TResult is whatever the underlying {@linkcode TransportFunction} resolves with.
  * @interface
  */
-export interface EmitterFunction {
-  <T>(event: CloudEvent<T>, options?: Options): Promise<unknown>;
+export interface EmitterFunction<TResult = unknown> {
+  <T>(event: CloudEvent<T>, options?: Options): Promise<TResult>;
 }
 
 /**
  * TransportFunction is an invokable interface provided to the emitterFactory.
  * A TransportFunction's responsiblity is to send a JSON encoded event Message
- * across the wire.
+ * across the wire. TResult is the value it resolves with, e.g. an HTTP client's
+ * response, or void for a transport which has nothing to hand back.
  * @interface
  */
-export interface TransportFunction {
-  (message: Message, options?: Options): Promise<unknown>;
+export interface TransportFunction<TResult = unknown> {
+  (message: Message, options?: Options): Promise<TResult>;
 }
 
 const emitterDefaults: Options = { binding: HTTP, mode: Mode.BINARY };
@@ -51,12 +57,14 @@ const emitterDefaults: Options = { binding: HTTP, mode: Mode.BINARY };
  * @param {Mode} options.mode the encoding mode (Mode.BINARY or Mode.STRUCTURED)
  * @returns {EmitterFunction} an EmitterFunction to send events with
  */
-export function emitterFor(fn: TransportFunction, options = emitterDefaults): EmitterFunction {
+export function emitterFor<TResult = unknown>(
+  fn: TransportFunction<TResult>, options = emitterDefaults,
+): EmitterFunction<TResult> {
   if (!fn) {
     throw new TypeError("A TransportFunction is required");
   }
   const { binding, mode }: any = { ...emitterDefaults, ...options };
-  return function emit<T>(event: CloudEvent<T>, opts?: Options): Promise<unknown> {
+  return function emit<T>(event: CloudEvent<T>, opts?: Options): Promise<TResult> {
     opts = opts || {};
 
     switch (mode) {
