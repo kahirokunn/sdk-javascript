@@ -59,15 +59,6 @@ interface ErrorBody {
   cause?: unknown;
 }
 
-// This project's TypeScript lib typings predate AbortSignal.timeout() and AbortSignal.reason.
-interface AbortSignalWithReason extends AbortSignal {
-  readonly reason: unknown;
-}
-
-interface AbortSignalConstructorWithTimeout {
-  timeout(milliseconds: number): AbortSignalWithReason;
-}
-
 /**
  * Creates a transport function that sends one CloudEvent HTTP request to the sink.
  * Use the returned function with {@linkcode emitterFor}.
@@ -158,11 +149,11 @@ function validateRedirect(value: HTTPTransportOptions["redirect"]): "manual" | "
   return value;
 }
 
-function timeoutSignal(timeoutMs: number | undefined): AbortSignalWithReason | undefined {
+function timeoutSignal(timeoutMs: number | undefined): AbortSignal | undefined {
   if (timeoutMs === undefined) {
     return undefined;
   }
-  return (AbortSignal as unknown as AbortSignalConstructorWithTimeout).timeout(timeoutMs);
+  return AbortSignal.timeout(timeoutMs);
 }
 
 function requestHeaders(messageHeaders: unknown, optionHeaders: unknown): Headers {
