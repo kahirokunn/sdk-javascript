@@ -18,8 +18,8 @@ _Note:_ Supports CloudEvent version 1.0
 
 ## Installation
 
-The CloudEvents SDK requires a current LTS version of Node.js. At the moment
-those are Node.js 16.x, and Node.js 18.x. To install in your Node.js project:
+The CloudEvents SDK supports Node.js 20 through 24. To install it in your
+Node.js project:
 
 ```console
 npm install cloudevents
