@@ -49,17 +49,69 @@ app.post("/", (req, res) => {
 The easiest way to send events is to use the built-in HTTP emitter.
 
 ```js
-const { httpTransport, emitterFor, CloudEvent } = require("cloudevents");
+const { httpTransport, HTTPTransportError, emitterFor, CloudEvent } = require("cloudevents");
 
 // Create an emitter to send events to a receiver
-const emit = emitterFor(httpTransport("https://my.receiver.com/endpoint"));
+const emit = emitterFor(httpTransport("https://my.receiver.com/endpoint", {
+  timeoutMs: 10000,
+  headers: { authorization: `Bearer ${token}` },
+}));
 
 // Create a new CloudEvent
 const ce = new CloudEvent({ type, source, data });
 
 // Send it to the endpoint - encoded as HTTP binary by default
-emit(ce);
+emit(ce).catch((error) => {
+  if (error instanceof HTTPTransportError) {
+    console.error(error.kind, error.statusCode, error.responseBody);
+  }
+});
 ```
+
+A successful emit resolves with no value. A send that fails rejects with an
+`HTTPTransportError`, and `error.kind` says what went wrong:
+
+| What happened | `error.kind` | `error.statusCode` |
+| --- | --- | --- |
+| The receiver returned a response that was not 2xx | `http-status` | The received status, such as `503` |
+| `timeoutMs` elapsed before the request completed | `timeout` | `undefined` |
+| A signal you supplied aborted the request | `aborted` | `undefined` |
+| DNS, connection, or TLS failed | `network` | `undefined` |
+
+`error.cause` carries the underlying failure. `error.headers` and
+`error.responseBody` hold what the receiver sent, so they are only set for
+`http-status`, and `error.responseBody` is also absent when the body could not
+be read - `error.cause` then says why.
+
+Options you supply are checked before anything is sent, so a header or a
+`signal` the transport cannot use is a plain `TypeError` rather than an
+`HTTPTransportError`. `httpTransport()` throws for the options it was created
+with, and `emit()` rejects for the ones passed with the event.
+
+The request is never retried automatically. Headers passed to `emit` apply to
+that event only and take precedence over the transport headers, which in turn
+take precedence over the CloudEvent binding headers.
+
+Pass a `signal` to cancel requests that are still in flight, either per event
+with `emit(ce, { signal })` or for every event the transport sends:
+
+```js
+const controller = new AbortController();
+const emit = emitterFor(httpTransport(sink, { signal: controller.signal }));
+controller.abort();
+```
+
+Redirects are not followed by default, so every one of them is reported as an
+`http-status` error. On Node `error.statusCode` is the status the receiver
+returned. In a browser such a response is an opaque redirect, so there
+`error.statusCode` is `0`, `error.headers` is empty and `error.responseBody` is
+`""`.
+
+Set `fetchOptions: { redirect: "follow" }` to follow them instead. Fetch keeps
+the CloudEvent POST and its body only for `307` and `308`; a `301`, `302` or
+`303` is followed with a bodyless `GET`, which drops the event. Other standard
+Fetch options go in `fetchOptions` as well; the SDK always controls `method`,
+`body`, `headers`, and `signal`.
 
 If you prefer to use another transport mechanism for sending events
 over HTTP, you can use the `HTTP` binding to create a `Message` which
@@ -118,7 +170,7 @@ Emitter.on("cloudevent", emit);
 
 ...
 // In any part of the code, calling `emit()` on a `CloudEvent` instance will send the event
-new CloudEvent({ type, source, data }).emit();
+await new CloudEvent({ type, source, data }).emit();
 
 // You can also have several listeners to send the event to several endpoints
 ```
