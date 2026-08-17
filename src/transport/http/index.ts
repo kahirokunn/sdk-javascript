@@ -5,6 +5,7 @@
 
 import { Headers as CloudEventHeaders, Message } from "../../message";
 import { Options, TransportFunction } from "../emitter";
+import { signalFrom } from "../signal";
 
 /** The request options accepted by the Fetch implementation in the current environment */
 export type FetchRequestInit = NonNullable<Parameters<typeof globalThis.fetch>[1]>;
@@ -287,26 +288,6 @@ function validateHTTPURL(sink: string | URL): URL {
     throw new TypeError(`unsupported protocol ${url.protocol}`);
   }
   return url;
-}
-
-/**
- * Check a signal supplied by a caller, either for this transport or for a single send, by its
- * platform brand rather than the interface prototype of this realm
- *
- * @param {unknown} value the signal supplied by the caller, if any
- * @returns {AbortSignal|undefined} the signal, or undefined when none was supplied
- */
-function signalFrom(value: unknown): AbortSignal | undefined {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-  try {
-    // the getter checks the AbortSignal platform brand and accepts signals from another realm
-    Reflect.get(AbortSignal.prototype, "aborted", value);
-  } catch {
-    throw new TypeError("options.signal must be an AbortSignal");
-  }
-  return value as AbortSignal;
 }
 
 /**
