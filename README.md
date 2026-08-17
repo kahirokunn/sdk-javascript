@@ -25,9 +25,8 @@ those are Node.js 16.x, and Node.js 18.x. To install in your Node.js project:
 npm install cloudevents
 ```
 
-The examples below use ECMAScript modules. Add `"type": "module"` to your
-`package.json`, or save the example files with the `.mjs` extension. CommonJS
-applications can use `require("cloudevents")` instead.
+The examples below use ECMAScript modules; CommonJS applications can use
+`require("cloudevents")` instead.
 
 ### Receiving and Emitting Events
 
