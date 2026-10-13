@@ -15,6 +15,7 @@ import {
   HTTPTransportErrorDetails, HTTPTransportErrorKind,
   HTTPTransportFunction, HTTPTransportOptions, HTTPTransportResponse, HTTPTransportSendOptions,
   httpDiscardResponseHandler, httpTextResponseHandler, httpTransport } from "./transport/http";
+import { withTimeout } from "./transport/timeout";
 import {
   Headers, Mode, Binding, HTTP, Kafka, KafkaEvent, KafkaMessage, Message, MQTT, MQTTMessage, MQTTMessageFactory,
   Serializer, Deserializer } from "./message";
@@ -34,6 +35,7 @@ export {
   MQTTMessageFactory,
   // From transport
   emitterFor,
+  withTimeout,
   httpTransport,
   httpTextResponseHandler,
   httpDiscardResponseHandler,
